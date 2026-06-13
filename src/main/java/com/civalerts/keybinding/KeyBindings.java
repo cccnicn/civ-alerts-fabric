@@ -7,12 +7,20 @@ import org.lwjgl.glfw.GLFW;
 
 public class KeyBindings {
     public static KeyBinding TOGGLE_HUD;
+    public static KeyBinding OPEN_HISTORY;
 
     public static void register() {
         TOGGLE_HUD = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.civalerts.toggle_hud",
                 InputUtil.Type.KEYSYM,
                 GLFW.GLFW_KEY_F8,
+                "category.civalerts.main"
+        ));
+
+        OPEN_HISTORY = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+                "key.civalerts.open_history",
+                InputUtil.Type.KEYSYM,
+                GLFW.GLFW_KEY_F9,
                 "category.civalerts.main"
         ));
     }

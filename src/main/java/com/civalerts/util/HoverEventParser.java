@@ -61,7 +61,7 @@ public final class HoverEventParser {
     private static void collectHoverText(Text text, StringBuilder sb) {
         HoverEvent event = text.getStyle().getHoverEvent();
         if (event != null) {
-            Text hoverValue = event.getValueFor(HoverEvent.Action.SHOW_TEXT);
+            Text hoverValue = event.getValue(HoverEvent.Action.SHOW_TEXT);
             if (hoverValue != null) {
                 String str = hoverValue.getString();
                 if (!str.isBlank()) {

@@ -5,13 +5,11 @@ import com.civalerts.config.ConfigManager;
 import com.civalerts.event.CivEvent;
 import com.civalerts.event.CivEventType;
 import com.civalerts.event.EventManager;
-
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.render.RenderTickCounter;
 import net.minecraft.text.Text;
-
 import org.lwjgl.glfw.GLFW;
 
 import java.time.Instant;
@@ -62,7 +60,6 @@ public class HudRenderer {
 
         int bg = ((int)(255 * config.opacity) << 24) | 0x222222;
         int headerColor = 0x88001177;
-        int borderColor = 0xFF555555;
 
         // Background
         context.fill(0, 0, scaledW, scaledH, bg);
@@ -70,6 +67,13 @@ public class HudRenderer {
         // Header
         context.fill(0, 0, scaledW, HEADER_HEIGHT, headerColor);
         context.drawText(MinecraftClient.getInstance().textRenderer, Text.literal("CivAlerts"), 4, 4, 0xFFFFFF, false);
+
+        // History button in header
+        String histLabel = "[H]";
+        int histW = MinecraftClient.getInstance().textRenderer.getWidth(histLabel) + 6;
+        int histX = scaledW - histW - 2;
+        context.fill(histX, 2, histX + histW, HEADER_HEIGHT - 2, 0x44000000);
+        context.drawText(MinecraftClient.getInstance().textRenderer, Text.literal(histLabel), histX + 3, 4, 0xFFFFFF, false);
 
         // Content area
         int contentY = HEADER_HEIGHT + 2;
@@ -149,7 +153,6 @@ public class HudRenderer {
         if (client.currentScreen != null) return;
 
         double mx, my;
-        // Try to get scaled mouse coordinates
         mx = client.mouse.getX() / client.getWindow().getScaleFactor();
         my = client.mouse.getY() / client.getWindow().getScaleFactor();
 
@@ -162,9 +165,19 @@ public class HudRenderer {
         boolean inHeader = inBounds && my < config.y + HEADER_HEIGHT;
         boolean inResize = inBounds && mx > config.x + scaledW - 8 && my > config.y + scaledH - 8;
 
+        // History button area
+        String histLabel = "[H]";
+        int histW = client.textRenderer.getWidth(histLabel) + 6;
+        int histX = config.x + scaledW - histW - 2;
+        boolean inHistoryButton = inHeader && mx >= histX && mx <= histX + histW;
+
         if (leftDown) {
             if (!dragging && !resizing) {
-                if (inResize) {
+                if (inHistoryButton) {
+                    // Open history screen
+                    client.execute(() -> client.setScreen(new HistoryScreen(eventManager)));
+                    return;
+                } else if (inResize) {
                     resizing = true;
                     resizeStartW = config.width;
                     resizeStartH = config.height;
