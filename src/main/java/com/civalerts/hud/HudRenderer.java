@@ -45,6 +45,10 @@ public class HudRenderer {
         HudRenderCallback.EVENT.register(this::render);
     }
 
+    public void tick() {
+        configManager.tickSave();
+    }
+
     private void render(DrawContext context, RenderTickCounter tickCounter) {
         ConfigData config = configManager.getData();
         if (!config.visible) return;
@@ -58,7 +62,8 @@ public class HudRenderer {
         int scaledW = (int)(config.width / config.scale);
         int scaledH = (int)(config.height / config.scale);
 
-        int bg = ((int)(255 * config.opacity) << 24) | 0x222222;
+        int bgAlpha = (int)(255 * config.opacity);
+        int bg = (bgAlpha << 24) | 0x222222;
         int headerColor = 0x88001177;
 
         // Background
@@ -71,12 +76,11 @@ public class HudRenderer {
         // History button in header
         String histLabel = "[H]";
         int histW = MinecraftClient.getInstance().textRenderer.getWidth(histLabel) + 6;
-        int histX = scaledW - histW - 2;
-        context.fill(histX, 2, histX + histW, HEADER_HEIGHT - 2, 0x44000000);
-        context.drawText(MinecraftClient.getInstance().textRenderer, Text.literal(histLabel), histX + 3, 4, 0xFFFFFF, false);
+        int histLocalX = scaledW - histW - 2;
+        context.fill(histLocalX, 2, histLocalX + histW, HEADER_HEIGHT - 2, 0x44000000);
+        context.drawText(MinecraftClient.getInstance().textRenderer, Text.literal(histLabel), histLocalX + 3, 4, 0xFFFFFF, false);
 
         // Content area
-        int contentY = HEADER_HEIGHT + 2;
         int colWidth = scaledW / 3;
 
         // Column headers
@@ -116,17 +120,22 @@ public class HudRenderer {
                 String display = "[" + timeStr + "] " + ageStr + " " + event.text();
 
                 // Truncate if too long
-                if (display.length() > (colWidth / 6)) {
-                    display = display.substring(0, (colWidth / 6)) + "...";
+                int maxChars = colWidth / 6;
+                if (display.length() > maxChars) {
+                    display = display.substring(0, maxChars) + "...";
                 }
 
                 context.drawText(MinecraftClient.getInstance().textRenderer, Text.literal(display), colX + 2, y, 0xFFFFFF, false);
 
-                // Track coordinates for click
+                // Track coordinates for click (in local unscaled space)
                 for (String coord : event.coordinates()) {
-                    int coordX = colX + 2 + MinecraftClient.getInstance().textRenderer.getWidth(display.substring(0, display.indexOf(coord)));
-                    int coordY = y;
-                    clickZones.add(new ClickableZone(coordX, coordY, coordX + MinecraftClient.getInstance().textRenderer.getWidth(coord), coordY + lineH, coord));
+                    int coordIdx = display.indexOf(coord);
+                    if (coordIdx >= 0) {
+                        int coordLocalX = colX + 2 + MinecraftClient.getInstance().textRenderer.getWidth(display.substring(0, coordIdx));
+                        int coordLocalY = y;
+                        int coordLocalW = MinecraftClient.getInstance().textRenderer.getWidth(coord);
+                        clickZones.add(new ClickableZone(coordLocalX, coordLocalY, coordLocalX + coordLocalW, coordLocalY + lineH, coord));
+                    }
                 }
 
                 y += lineH;
@@ -138,7 +147,7 @@ public class HudRenderer {
 
         context.getMatrices().pop();
 
-        // Notification
+        // Notification (drawn outside the scaled matrix, in screen space)
         if (notificationText != null && System.currentTimeMillis() - lastNotificationTime < 2000) {
             int notifW = MinecraftClient.getInstance().textRenderer.getWidth(notificationText) + 8;
             int screenW = context.getScaledWindowWidth();
@@ -152,29 +161,29 @@ public class HudRenderer {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.currentScreen != null) return;
 
-        double mx, my;
-        mx = client.mouse.getX() / client.getWindow().getScaleFactor();
-        my = client.mouse.getY() / client.getWindow().getScaleFactor();
+        double mx = client.mouse.getX() / client.getWindow().getScaleFactor();
+        double my = client.mouse.getY() / client.getWindow().getScaleFactor();
 
         boolean leftDown = GLFW.glfwGetMouseButton(client.getWindow().getHandle(), GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_PRESS;
 
         int scaledW = (int)(config.width / config.scale);
         int scaledH = (int)(config.height / config.scale);
 
-        boolean inBounds = mx >= config.x && mx <= config.x + scaledW && my >= config.y && my <= config.y + scaledH;
-        boolean inHeader = inBounds && my < config.y + HEADER_HEIGHT;
-        boolean inResize = inBounds && mx > config.x + scaledW - 8 && my > config.y + scaledH - 8;
+        boolean inBounds = mx >= config.x && mx <= config.x + scaledW * config.scale && my >= config.y && my <= config.y + scaledH * config.scale;
+        boolean inHeader = inBounds && my < config.y + HEADER_HEIGHT * config.scale;
+        boolean inResize = inBounds && mx > config.x + (scaledW - 8) * config.scale && my > config.y + (scaledH - 8) * config.scale;
 
-        // History button area
+        // History button area (screen-space calculation)
         String histLabel = "[H]";
         int histW = client.textRenderer.getWidth(histLabel) + 6;
-        int histX = config.x + scaledW - histW - 2;
-        boolean inHistoryButton = inHeader && mx >= histX && mx <= histX + histW;
+        int histScreenX = (int)(config.x + (scaledW - histW - 2) * config.scale);
+        int histScreenW = (int)(histW * config.scale);
+        int histScreenH = (int)(HEADER_HEIGHT * config.scale);
+        boolean inHistoryButton = inHeader && mx >= histScreenX && mx <= histScreenX + histScreenW && my >= config.y && my <= config.y + histScreenH;
 
         if (leftDown) {
             if (!dragging && !resizing) {
                 if (inHistoryButton) {
-                    // Open history screen
                     client.execute(() -> client.setScreen(new HistoryScreen(eventManager)));
                     return;
                 } else if (inResize) {
@@ -195,15 +204,15 @@ public class HudRenderer {
             if (dragging) {
                 config.x = (int)(dragStartConfigX + (mx - dragStartX));
                 config.y = (int)(dragStartConfigY + (my - dragStartY));
-                configManager.save();
+                configManager.markDirty();
             }
 
             if (resizing) {
-                int newW = (int)(resizeStartW + (mx - dragStartX) * config.scale);
-                int newH = (int)(resizeStartH + (my - dragStartY) * config.scale);
+                int newW = (int)(resizeStartW + (mx - dragStartX));
+                int newH = (int)(resizeStartH + (my - dragStartY));
                 config.width = Math.max(100, newW);
                 config.height = Math.max(50, newH);
-                configManager.save();
+                configManager.markDirty();
             }
         } else {
             if (dragging) {
@@ -215,10 +224,14 @@ public class HudRenderer {
                 configManager.save();
             }
 
-            // Check coordinate click
+            // Check coordinate click (must account for scale)
             if (inBounds) {
                 for (ClickableZone zone : clickZones) {
-                    if (mx >= config.x + zone.x1 && mx <= config.x + zone.x2 && my >= config.y + zone.y1 && my <= config.y + zone.y2) {
+                    double zoneScreenX1 = config.x + zone.x1 * config.scale;
+                    double zoneScreenX2 = config.x + zone.x2 * config.scale;
+                    double zoneScreenY1 = config.y + zone.y1 * config.scale;
+                    double zoneScreenY2 = config.y + zone.y2 * config.scale;
+                    if (mx >= zoneScreenX1 && mx <= zoneScreenX2 && my >= zoneScreenY1 && my <= zoneScreenY2) {
                         copyToClipboard(zone.text);
                         break;
                     }

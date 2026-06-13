@@ -38,6 +38,10 @@ public class CivAlertsMod implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             eventManager.cleanOldEvents();
 
+            if (hudRenderer != null) {
+                hudRenderer.tick();
+            }
+
             if (KeyBindings.TOGGLE_HUD.wasPressed()) {
                 var config = configManager.getData();
                 config.visible = !config.visible;
@@ -47,7 +51,6 @@ public class CivAlertsMod implements ClientModInitializer {
 
             if (KeyBindings.OPEN_HISTORY.wasPressed()) {
                 MinecraftClient.getInstance().setScreen(new HistoryScreen(eventManager));
-                LOGGER.info("History screen opened");
             }
         });
 
