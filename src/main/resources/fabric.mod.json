@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "id": "civ-alerts",
+  "version": "${version}",
+  "name": "CivAlerts",
+  "description": "Intercept Civ server notifications and display them in a HUD.",
+  "authors": ["CivAlertsTeam"],
+  "contact": {
+    "homepage": "https://github.com/cccnn/civ-alerts-fabric",
+    "sources": "https://github.com/cccnn/civ-alerts-fabric"
+  },
+  "license": "MIT",
+  "icon": "assets/civalerts/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.civalerts.CivAlertsMod"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "~1.21.1",
+    "java": ">=21",
+    "fabric-api": "*"
+  },
+  "suggests": {
+    "modmenu": "*"
+  }
+}
