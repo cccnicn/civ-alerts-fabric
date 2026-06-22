@@ -51,8 +51,11 @@ public final class HoverEventParser {
         String rawHover = extractHoverTextRecursive(text);
         List<String> entries = splitEntries(rawHover);
 
+        LOGGER.info("parse: matched [Civ] type={} count={} rawHover='{}' entries={}",
+                type, count, rawHover, entries.size());
+
         if (!entries.isEmpty() && entries.size() != count) {
-            LOGGER.debug("Parsed entry count ({}) differs from reported count ({}", entries.size(), count);
+            LOGGER.debug("Parsed entry count ({}) differs from reported count ({})", entries.size(), count);
         }
 
         return new ParsedReport(type, count, rawHover, entries);
@@ -60,11 +63,11 @@ public final class HoverEventParser {
 
     private static String extractHoverTextRecursive(Text text) {
         StringBuilder sb = new StringBuilder();
-        collectHoverText(text, sb);
+        collectHoverText(text, sb, 0);
         return sb.toString().trim();
     }
 
-    private static void collectHoverText(Text text, StringBuilder sb) {
+    private static void collectHoverText(Text text, StringBuilder sb, int depth) {
         if (text == null) {
             return;
         }
@@ -72,21 +75,26 @@ public final class HoverEventParser {
         if (style != null) {
             HoverEvent event = style.getHoverEvent();
             if (event != null) {
-                Text hoverValue = event.getValue(HoverEvent.Action.SHOW_TEXT);
-                if (hoverValue != null) {
-                    String str = hoverValue.getString();
-                    if (str != null && !str.isBlank()) {
-                        if (!sb.isEmpty()) {
-                            sb.append('\n');
+                LOGGER.info("collectHoverText: depth={} found HoverEvent type={} class={}",
+                        depth, event.getAction(), event.getClass().getSimpleName());
+                if (event instanceof HoverEvent.ShowText showText) {
+                    Text hoverValue = showText.value();
+                    if (hoverValue != null) {
+                        String str = hoverValue.getString();
+                        LOGGER.info("collectHoverText: ShowText value='{}'", str);
+                        if (str != null && !str.isBlank()) {
+                            if (!sb.isEmpty()) { sb.append('\n'); }
+                            sb.append(str);
                         }
-                        sb.append(str);
                     }
+                } else {
+                    LOGGER.info("collectHoverText: NOT ShowText, skipping (action={})", event.getAction());
                 }
             }
         }
 
         for (Text sibling : text.getSiblings()) {
-            collectHoverText(sibling, sb);
+            collectHoverText(sibling, sb, depth + 1);
         }
     }
 
