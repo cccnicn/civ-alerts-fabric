@@ -55,9 +55,9 @@ public class HudRenderer {
 
         updateInteraction(config);
 
-        context.getMatrices().push();
-        context.getMatrices().translate(config.x, config.y, 0);
-        context.getMatrices().scale(config.scale, config.scale, 1f);
+        context.getMatrices().pushMatrix();
+        context.getMatrices().translate((float) config.x, (float) config.y);
+        context.getMatrices().scale(config.scale, config.scale);
 
         int scaledW = (int)(config.width / config.scale);
         int scaledH = (int)(config.height / config.scale);
@@ -119,10 +119,14 @@ public class HudRenderer {
                 String ageStr = ageSec < 60 ? ageSec + "s ago" : (ageSec / 60) + "m ago";
                 String display = "[" + timeStr + "] " + ageStr + " " + event.text();
 
-                // Truncate if too long
-                int maxChars = colWidth / 6;
-                if (display.length() > maxChars) {
-                    display = display.substring(0, maxChars) + "...";
+                // Truncate if too long (P1 fix: use textRenderer instead of colWidth/6 heuristic)
+                int maxDisplayWidth = colWidth - 4;
+                var tr = MinecraftClient.getInstance().textRenderer;
+                if (tr.getWidth(display) > maxDisplayWidth) {
+                    while (display.length() > 0 && tr.getWidth(display + "...") > maxDisplayWidth) {
+                        display = display.substring(0, display.length() - 1);
+                    }
+                    display = display + "...";
                 }
 
                 context.drawText(MinecraftClient.getInstance().textRenderer, Text.literal(display), colX + 2, y, 0xFFFFFF, false);
@@ -145,7 +149,7 @@ public class HudRenderer {
         // Resize handle
         context.fill(scaledW - 8, scaledH - 8, scaledW, scaledH, 0xFFAAAAAA);
 
-        context.getMatrices().pop();
+        context.getMatrices().popMatrix();
 
         // Notification (drawn outside the scaled matrix, in screen space)
         if (notificationText != null && System.currentTimeMillis() - lastNotificationTime < 2000) {
@@ -159,10 +163,13 @@ public class HudRenderer {
 
     private void updateInteraction(ConfigData config) {
         MinecraftClient client = MinecraftClient.getInstance();
-        if (client.currentScreen != null) return;
+        // FIX: Don't block ALL interaction when a screen is open.
+        // Only skip when our own HistoryScreen is open to avoid conflicts.
+        // When chat/inventory is open, the cursor is free and we CAN interact with HUD.
+        if (client.currentScreen instanceof HistoryScreen) return;
 
-        double mx = client.mouse.getX() / client.getWindow().getScaleFactor();
-        double my = client.mouse.getY() / client.getWindow().getScaleFactor();
+        double mx = client.mouse.getScaledX(client.getWindow());
+        double my = client.mouse.getScaledY(client.getWindow());
 
         boolean leftDown = GLFW.glfwGetMouseButton(client.getWindow().getHandle(), GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_PRESS;
 

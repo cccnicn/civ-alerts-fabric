@@ -6,7 +6,6 @@ import com.civalerts.event.EventManager;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
 import org.lwjgl.glfw.GLFW;
 
 import java.time.Instant;
@@ -52,7 +51,10 @@ public class HistoryScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        this.renderBackground(context, mouseX, mouseY, delta);
+        // FIX: Call super.render() first (it handles renderBackground with blur).
+        // In MC 1.21.11, renderBackground applies blur, and it can only happen once per frame.
+        // Calling this.renderBackground() + super.render() = double blur = crash.
+        super.render(context, mouseX, mouseY, delta);
 
         // Background
         int bgColor = 0xDD222222;
@@ -111,13 +113,18 @@ public class HistoryScreen extends Screen {
             String fullText = event.text();
             int maxTextWidth = contentWidth - (textColX - PADDING);
             int textWidth = this.textRenderer.getWidth(fullText);
+            // P1 fix: binary search on character count instead of using pixel values as char indices
             if (textWidth > maxTextWidth) {
-                // Truncate with ellipsis
-                int visibleChars = this.textRenderer.getWidth(fullText);
-                while (visibleChars > 0 && this.textRenderer.getWidth(fullText.substring(0, Math.min(visibleChars, fullText.length()))) > maxTextWidth - 15) {
-                    visibleChars = Math.max(0, visibleChars - 1);
+                int lo = 0, hi = fullText.length();
+                while (lo < hi) {
+                    int mid = (lo + hi + 1) / 2;
+                    if (this.textRenderer.getWidth(fullText.substring(0, mid)) <= maxTextWidth - 15) {
+                        lo = mid;
+                    } else {
+                        hi = mid - 1;
+                    }
                 }
-                fullText = fullText.substring(0, Math.min(visibleChars, fullText.length())) + "...";
+                fullText = fullText.substring(0, lo) + "...";
             }
             context.drawTextWithShadow(this.textRenderer, Text.literal(fullText), textColX, eventY, 0xEEEEEE);
         }
@@ -134,8 +141,6 @@ public class HistoryScreen extends Screen {
             context.fill(scrollbarX, barTop, scrollbarX + scrollbarWidth, barTop + barHeight, 0x33666666);
             context.fill(scrollbarX, thumbY, scrollbarX + scrollbarWidth, thumbY + thumbHeight, 0xFF888888);
         }
-
-        super.render(context, mouseX, mouseY, delta);
     }
 
     @Override
@@ -149,12 +154,12 @@ public class HistoryScreen extends Screen {
     }
 
     @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
+    public boolean keyPressed(net.minecraft.client.input.KeyInput keyInput) {
+        if (keyInput.key() == GLFW.GLFW_KEY_ESCAPE) {
             this.close();
             return true;
         }
-        return super.keyPressed(keyCode, scanCode, modifiers);
+        return super.keyPressed(keyInput);
     }
 
     @Override
